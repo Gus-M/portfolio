@@ -2,9 +2,9 @@ library(tidyverse)
 library(data.table)
 
 #Configurando diretórios
-setwd("/home/gustavo/Projects/kaggle_GrupoBimbo/")
-input_dir = "/home/gustavo/Projects/kaggle_GrupoBimbo/input/"
-output_dir = "/home/gustavo/Projects/kaggle_GrupoBimbo/output/"
+cur_dir = rstudioapi::getActiveProject()
+input_dir = paste(cur_dir, 'input/', sep = '/')
+output_dir = paste(cur_dir, 'output/', sep = '/')
 
 #Selecionando arquivos
 files <- list.files(input_dir, '[^zip_files]')
@@ -112,14 +112,7 @@ products_top100 <- dt_train[Venta_uni_hoy > 0 & Dev_uni_proxima < Venta_uni_hoy,
 #Aproveitando que o dataset "top_sales" possui IDs regionais, vamos observar a variabilidade regional destas vendas
 inner_join(products_top100, top_sales, by = 'Producto_ID') %>%
   group_by(Producto_ID, V1) %>%
-  summarize(Spread = IQR(Sales))
-#Quanto maior o "Spread", maior a procura deste produto em alguns locais e menor em outros.
-#Um "Spread" menor indica que a procura por aquele produto é semelhante em todas as regiões observadas
-#Entretanto, um Spread igual a zero significa que aquele produto apareceu em apenas uma região, não havendo valores adicionais para comparação
-#
-#Por exemplo, o produto 1250 apresentou um IQR de 7226 após registrar registrou 20453 vendas na cidade 2 do estado 1,
-#enquanto este mesmo produto registrou 6000 e 9006 vendas nas cidades 1 e 3 do estado 2, respectivamente.
-#Isso demonstra que alguns produtos são mais procurados em certas regiões do México e menos procurados em outras
+  summarize(Sales_stdev = sd(Sales))
 
 #Total de vendas por semana
 dt_train[,sum(Venta_uni_hoy), by = Semana]
@@ -129,6 +122,13 @@ dt_train[,sum(Venta_uni_hoy), by = Semana]
 ## Análise de produtos vendidos
 #Resumo estatístico por semana
 dt_train[,summary(Venta_uni_hoy), by = Semana]
+#Interpretação do output
+#1- min
+#2- 1o Quartil
+#3- mediana
+#4- média
+#5- 3o Quartil
+#6- max
 #A maioria dos produtos é vendida em poucas unidades. Entretanto, para alguns produtos, parece existir uma demanda excessiva!
 quantile(dt_train[,Venta_uni_hoy], seq(0, 100) * 0.01)
 
@@ -136,9 +136,59 @@ quantile(dt_train[,Venta_uni_hoy], seq(0, 100) * 0.01)
 dt_train[Venta_uni_hoy > 4000, .(Producto_ID, Venta_uni_hoy, Dev_uni_proxima, Demanda_uni_equil)]
 #Esses valores extremos não se tratam de outliers ocasionais. De fato, há uma grande demanda por certos produtos.
 #A solicitação de um cliente pelo produto 30916 é uma exceção. Foram solicitadas 7200 unidades, mas apenas 432 foram vendidas e 6768 foram devolvidas
-
 products_venda4k <- dt_train[Venta_uni_hoy > 4000, Producto_ID]
-#TODO: Continuar daqui
+
 ## Análise de produtos devolvidos
+#Resumo estatístico por semana
+dt_train[, summary(Dev_uni_proxima), by = Semana]
+#Interpretação do output
+#1- min
+#2- 1o Quartil
+#3- mediana
+#4- média
+#5- 3o Quartil
+#6- max
+quantile(dt_train[,Dev_uni_proxima], seq(0, 100) * 0.01)
+
+#Observando as 100 maiores ocorrências de devolução e demanda
+dt_devol100 <- dt_train[, .(Venta = sum(Venta_uni_hoy),
+             Devol = sum(Dev_uni_proxima),
+             Demanda = sum(Demanda_uni_equil)), by = Producto_ID][,Perc_Vendido := (1-(Devol/Venta)) * 100][order(-Devol)][1:100]
+dt_devol100
+#Parece existir algumas inconsistências não observadas anteriormente. Alguns produtos possuem mais devoluções do que solicitações,
+#como observado no produto 4053 onde foram solicitadas 18748 unidades, devolvidas 35959, resultando numa demanda de 18745 (?)
+#Não deveria ser possível existir mais devoluções do que solicitões. Este produto parece ser um bom candidato para uma análise mais específica
+#Algumas possibilidades que justificam este valor de demanda
+# * Há devolução de produtos solicitados num período anterior à Semana 3
+# * Os clientes fazem devolução de produtos oriundos de outras fontes não registradas neste dataset
+# * Nem todas as solicitações foram corretamente cadastradas nesse dataset
+dt_devol100[Devol >= Venta]
+
+#Vamos observar estes produtos detalhadamentes
+dt_train[Producto_ID == 3509]
+tbl_products %>% filter(Producto_ID == 3509)
+# O produto 3509 efetuou a devolução de 250.000 itens apesar de não haver qualquer registro de solicitação deste produto no dataset
+
+dt_train[Producto_ID == 4053]
+tbl_products %>% filter(Producto_ID == 4053)
+# Não parece haver nada de diferente nestes registros. Vamos observar apenas os casos em que houve devolução
+dt_train[Producto_ID == 4053 & Dev_uni_proxima > 0]
+# Em todas as semanas, o cliente 4102610 efetuou devoluções deste produto sem ter solicitado ou vendido este produto diretamente
+# Este mesmo cliente foi responsável por quase todos os registros de devolução deste produto
+tbl_cities %>% filter(Agencia_ID == 1345)
+dimensions[[3]] %>% filter(Agencia_ID == 1345)
+dimensions[[1]] %>% filter(Cliente_ID == 4102610)
+# Sem identificação deste cliente
+
+dt_train[Producto_ID == 30946]
+tbl_products %>% filter(Producto_ID == 30946)
+dt_train[Producto_ID == 30946 & Dev_uni_proxima > 0]
+# TODO: Continuar daqui. Semelhante ao produto 3509, este também possui registros de devolução sem antes haver pedidos de solicitação
+
+dt_train[Producto_ID == 36441]
+tbl_products %>% filter(Producto_ID == 36441)
+
+#dt_train[Cliente_ID == 653378 & Producto_ID == 45296, sapply(.(Venta_uni_hoy, Dev_uni_proxima, Demanda_uni_equil), sum)]
+#dt_train[Cliente_ID == 653378 & Producto_ID == 3509, sapply(.(Venta_uni_hoy, Dev_uni_proxima, Demanda_uni_equil), sum)]
 
 ## Análise de produtos com grandes demandas
