@@ -1,8 +1,8 @@
 library(tidyverse)
 
 #Configurando diretórios
-setwd("/home/gustavo/Projects/kaggle_GrupoBimbo/")
-input_dir = "/home/gustavo/Projects/kaggle_GrupoBimbo/input/"
+cur_dir = rstudioapi::getActiveProject()
+input_dir = paste(cur_dir, 'input/', sep = '/')
 
 #Selecionando arquivos
 files <- list.files(input_dir, '[^zip_files]')
