@@ -4,7 +4,7 @@ library(data.table)
 #Configurando diretórios
 cur_dir = rstudioapi::getActiveProject()
 input_dir = paste(cur_dir, 'input/', sep = '/')
-output_dir = paste(cur_dir, 'output/', sep = '/')
+output_data_dir = paste(cur_dir, 'output/data/', sep = '/')
 
 #Selecionando arquivos
 files <- list.files(input_dir, '[^zip_files]')
@@ -251,8 +251,8 @@ dt_train[Cliente_ID == 1050905]
 # Logo após, iniciarei a construção do modelo preditivo.
 
 ## Exportando as dimensões transformadas neste arquivo:
-write_csv2(tbl_towns, paste(output_dir, 'tbl_towns.csv', sep = ''))
-write_csv2(tbl_clients, paste(output_dir, 'tbl_clients.csv', sep = ''))
-write_csv2(tbl_products, paste(output_dir, 'tbl_products.csv', sep = ''))
+write.csv2(tbl_towns, paste(output_data_dir, 'tbl_towns.csv', sep = ''), row.names = F)
+write.csv2(tbl_clients, paste(output_data_dir, 'tbl_clients.csv', sep = ''), row.names = F)
+write.csv2(tbl_products, paste(output_data_dir, 'tbl_products.csv', sep = ''), row.names = F)
 #Limpando o ambiente de trabalho
 rm(list = ls())
