@@ -1,3 +1,6 @@
+# Notebook checkpoints
+.ipynb*
+
 # History files
 .Rhistory
 .Rapp.history
