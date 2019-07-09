@@ -11,3 +11,7 @@ Não adicionei todos meus projetos desenvolvidos na Câmara devido à restriçõ
 ## Kaggle
 
 Minhas participações solo em competições Kaggle são adicionadas aqui, com todos meus scripts e demais arquivos de interesse.
+
+### Kaggle Learn
+
+Projetos de aprendizado para desenvolver habilidades específicas das competições Kaggle orientadas a conhecimento.
