@@ -14,12 +14,12 @@ merge_inputs_by_row = function(..., is_attributed = NA){
 ## Granularizar o campo click_date
 strip_date = function(tib){
   tbl_date <- tib %>% 
-    transmute(click_day = day(click_date),
-              click_dayofweek = as.POSIXlt(click_date)$wday,
-              click_hour = hour(click_date),
-              click_minute = minute(click_date),
-              click_second = second(click_date))
-  return(bind_cols(tib, tbl_date))
+    transmute(click_day = day(click_time),
+              click_dayofweek = as.POSIXlt(click_time)$wday,
+              click_hour = hour(click_time),
+              click_minute = minute(click_time),
+              click_second = second(click_time))
+  return(bind_cols(tib, tbl_date) %>% select(-click_time))
 }
 
 #Média de downloads por app
