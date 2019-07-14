@@ -8,7 +8,7 @@ Meus projetos sempre possuem um arquivo de apresentação para resumir todo o tr
 
 Não adicionei todos meus projetos desenvolvidos na Câmara devido à restrições de confidencialidade. Apenas um dos projetos que desenvolvi foi apresentado publicamente à sociedade, e com isso me senti à vontade para compartilhar a apresentação do projeto, feita em R Markdown para HTML.
 
-* [Painel de Sustentabilidade - TI Verde](gustavo-hsm.github.io/Apresentacao_TI_Verde.html)
+* [Painel de Sustentabilidade - TI Verde](http://gustavo-hsm.github.io/Apresentacao_TI_Verde.html)
 
 ## Kaggle
 
