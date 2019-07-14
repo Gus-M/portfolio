@@ -8,10 +8,11 @@ Meus projetos sempre possuem um arquivo de apresentação para resumir todo o tr
 
 Não adicionei todos meus projetos desenvolvidos na Câmara devido à restrições de confidencialidade. Apenas um dos projetos que desenvolvi foi apresentado publicamente à sociedade, e com isso me senti à vontade para compartilhar a apresentação do projeto, feita em R Markdown para HTML.
 
+* [Painel de Sustentabilidade - TI Verde](gustavo-hsm.github.io/Apresentacao_TI_Verde.html)
+
 ## Kaggle
 
 Minhas participações solo em competições Kaggle são adicionadas aqui, com todos meus scripts e demais arquivos de interesse.
 
-### Kaggle Learn
+* [TalkingData AdTracking Fraud Detection Challenge](https://gustavo-hsm.github.io/TalkingData.html)
 
-Projetos de aprendizado para desenvolver habilidades específicas das competições Kaggle orientadas a conhecimento.
