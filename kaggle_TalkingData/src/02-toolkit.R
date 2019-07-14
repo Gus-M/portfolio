@@ -1,6 +1,5 @@
 require(tidyverse)
 require(lubridate)
-require(rlang)
 
 ## Agrupar todos inputs em um único tibble
 merge_inputs_by_row = function(..., is_attributed = NA){
