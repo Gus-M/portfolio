@@ -1,4 +1,8 @@
 library(tidyverse)
+library(data.table)
+library(reshape2)
+library(scales)
+library(corrplot)
 
 #Configurando diretórios
 cur_dir = rstudioapi::getActiveProject()
@@ -146,4 +150,284 @@ tbl_clients %>%
 #### Cidades ####
 tbl_towns <- read_csv(paste(input_dir, files[5], sep = '/'))
 glimpse(tbl_towns)
-#TODO: Continuar daqui. Extrair ID de Towns e criar um State_ID para State
+
+#Cidades e Estados serão agrupados numericamente
+encode_towns = function(tib){
+  return(tib %>%
+           mutate(Town_ID = as.numeric(factor(Town)),
+                  State_ID = as.numeric(factor(State))) %>%
+           select(Agencia_ID, Town_ID, State_ID))
+}
+encode_towns(tbl_towns)
+
+#### Dados de treino ####
+system('wc -l input/train.csv')
+#Existem aproximadamente 74 milhões de registros históricos, entretanto, não precisamos de todos estes dados para análise.
+
+#Vamos carregar o dataset completo usando Data Table. A partir deste, separamos a quantidade de semanas disponíveis
+#e extraímos algumas amostras a partir de cada semana:
+tbl_train <- fread(paste(input_dir, files[6], sep = '/'))
+week_range <- range(tbl_train$Semana)
+week_sequence <- seq(week_range[1], week_range[2], 1)
+
+set.seed(3)
+train_sample <- bind_rows(lapply(week_sequence, function(x){
+  tbl_train[Semana == x][sample(.N, 500000)]
+})) %>% as_tibble
+rm(tbl_train)
+
+#Análise estatística
+summary(train_sample)
+#A variável que estamos tentando prever é "Demanda_uni_equil", que representa 
+#"Venta_uni_hoy" (produtos vendidos) - "Dev_uni_proxima" (produtos que serão devolvidos na próxima semana).
+#Há uma variação significativa na demanda. Sob uma visão mais abrangente, é esperado vender 7.2 produtos por requisição.
+
+#Porém, não podemos generalizar essa média para todos os casos:
+train_sample %>%
+  filter(Demanda_uni_equil == 3920)
+#Neste exemplo, foram vendidos 3920 unidades do produto 2604. É a ocorrência mais extrema deste conjunto de dados.
+#Será necessário observar, a partir de cada ID, quais variáveis melhor representam a disparidade na demanda por produtos.
+
+hist(train_sample$Demanda_uni_equil)
+#Grande parte das requisições se concentram entre os registros próximos da média de 7.2 produtos.
+#Dando um zoom neste intervalo:
+ggplot(data = train_sample %>% filter(Demanda_uni_equil <= 10)) +
+  geom_histogram(mapping = aes(x = Demanda_uni_equil),
+                 bins = 10, fill = '#04691d', color = 'black',) +
+  scale_x_continuous(breaks = 1:10) +
+  ylab('Ocorrências') + xlab('Demanda') + 
+  ggtitle('Distribuição de registros (Demanda <= 10)')
+#A maior parte das demandas estão concentradas entre 1 e 5 produtos.
+
+#### Feature Engineering ####
+## Semana
+plotdata_semana <- train_sample %>%
+  group_by(Semana) %>%
+  summarize(sum_venta = sum(Venta_uni_hoy, na.rm = T),
+            sum_devol = sum(Dev_uni_proxima, na.rm = T),
+            sum_demanda = sum(Demanda_uni_equil, na.rm = T))
+
+#Vendas por semana
+ggplot(data = plotdata_semana) +
+  geom_col(mapping = aes(x = as.factor(Semana),
+                         y = sum_venta),
+           fill = '#328cad', width = 0.65) +
+  scale_y_continuous(labels = comma) +
+  xlab('Semana') + ylab('Vendas') + theme_light() +
+  ggtitle('Vendas por semana')
+
+#Devoluções por semana
+ggplot(data = plotdata_semana) +
+  geom_col(mapping = aes(x = as.factor(Semana),
+                         y = sum_devol),
+           fill = '#ad3232', width = 0.65) +
+  scale_y_continuous(labels = comma) +
+  xlab('Semana') + ylab('Devoluções') + theme_light() +
+  ggtitle('Devoluções por semana')
+
+#Demanda por semana
+ggplot(data = plotdata_semana) +
+  geom_col(mapping = aes(x = as.factor(Semana),
+                         y = sum_demanda),
+           fill = '#32ad32', width = 0.65) +
+  scale_y_continuous(labels = comma) +
+  xlab('Semana') + ylab('Demanda') + theme_light() +
+  ggtitle('Demanda por semana')
+#No período observado, não há variação suficiente na demanda semanal para justificar o uso dessa variável.
+#É possível observar um aumento no volume de devoluções a cada 4 semanas, sem variação suficiente para
+#justificar a criação de variáveis a partir deste valor.
+#A variação percebida nas devoluções das semanas 5, 6, 7 e 8 sugerem um padrão comportamental dos clientes.
+#Durante o treinamento do modelo preditivo, serão coletadas amostras referentes a estas semanas
+
+## Canal_ID
+#Registros por canal
+plotdata_channel <- train_sample %>%
+  count(Canal_ID, name = 'count_channel') %>%
+  mutate(prop = (count_channel / sum(count_channel)) * 100)
+
+ggplot(data = plotdata_channel,
+       mapping = aes(x = reorder(as.factor(Canal_ID), count_channel),
+                     y = count_channel,
+                     fill = as.factor(Canal_ID))) +
+  geom_col(color = '#777777', show.legend = F) +
+  geom_text(mapping = aes(label = sprintf('%.2f%%', prop))) +
+  scale_y_continuous(labels = comma) +
+  coord_flip() + theme_light() +
+  xlab('Canal') + ylab('Registros') +
+  ggtitle('Registros por canal de comunicação')
+#90.9% das requisições por produtos são realizadas pelo canal 1, seguido pelo canal 4 com 5%. 
+#Isso sugere que o canal 1 é a opção mais acessível para os clientes registrarem suas solicitações.
+#Os demais canais representam menos de 2% das solicitações, sendo os canais 8 e 9 os menos utilizados.
+
+#Observada a quantidade de registros por canal, precisamos observar o volume de demandas
+ggplot(data = train_sample %>% filter(Demanda_uni_equil > 0)) +
+  geom_boxplot(mapping = aes(x = as.factor(Canal_ID), 
+                             y = log(Demanda_uni_equil),
+                             fill = as.factor(Canal_ID)),
+               show.legend = F) +
+  coord_flip() + theme_light() +
+  xlab('Canal') + ylab('Demanda (log)') +
+  ggtitle('Demandas por canal de comunicação')
+#Este gráfico sugere que, em média, as demandas mais volumosas são atendidas pelos canais 5, 9 e 2.
+#Ao mesmo tempo, é possível observar outliers em todos canais de comunicação, 
+#sugerindo que não há um canal de comunicação exclusivo para grandes demandas de produto.
+#Será calculada a média de demandas por canal. Posteriormente, será analisada a correlação com a variável target
+tbl_channel_demanda <- train_sample %>%
+  group_by(Canal_ID) %>%
+  summarize(mean_channel_demanda = mean(Demanda_uni_equil, na.rm = T)) %>%
+  ungroup
+
+## Agencia_ID
+#É possível extrair diversas informações a partir do ID da agência:
+plotdata_depot <- train_sample %>%
+  group_by(Agencia_ID) %>%
+  summarize(mean_depot_demanda = mean(Demanda_uni_equil),
+            sum_depot_demanda = sum(Demanda_uni_equil)) %>%
+  left_join(train_sample %>% count(Agencia_ID, name = 'count_agencia'), by = 'Agencia_ID') %>%
+  left_join(encode_towns(tbl_towns), by = 'Agencia_ID')
+
+
+ggplot(data = plotdata_depot,
+       mapping = aes(x = count_agencia,
+                     y = sum_depot_demanda)) + geom_point() +
+  xlab('Quantidade de registros') + ylab('Total de demanda') + theme_light() +
+  ggtitle('Proporção de demandas por registros')
+#É esperada uma correlação positiva entre "quantidade de registros" e "total de demandas". Este gráfico 
+#nos auxilia a perceber alguns outliers: depósitos com baixo volume de registros e alto volume de demandas
+large_scale_depot_mean_threshold = quantile(plotdata_depot$mean_depot_demanda, 0.75)
+large_scale_depot_count_threshold = quantile(plotdata_depot$count_agencia, 0.5)
+plotdata_depot <- plotdata_depot %>% 
+  mutate(large_scale_depot = as.numeric(mean_depot_demanda >= large_scale_depot_mean_threshold &
+                                          count_agencia >= large_scale_depot_count_threshold))
+
+ggplot(data = plotdata_depot,
+       mapping = aes(x = count_agencia,
+                     y = sum_depot_demanda)) + 
+  geom_point(mapping = aes(color = as.factor(large_scale_depot)),
+             show.legend = F) +
+  scale_color_manual(values = c('#c5dbc5', '#32ad32')) + 
+  xlab('Quantidade de registros') + ylab('Total de demanda') + theme_light() +
+  ggtitle('Proporção de demandas por registros')
+
+plotdata_depot %>%
+  filter(large_scale_depot == 1) %>%
+  arrange(-mean_depot_demanda)
+#Em média, é esperado que solicitações nestas distribuidoras sejam maiores que o usual
+
+#A partir da localização das agências, podemos extrair informações de demandas por cidade e estado
+plotdata_town <- plotdata_depot %>%
+  select(sum_depot_demanda, count_agencia, Town_ID) %>%
+  group_by(Town_ID) %>%
+  summarize(sum_town_demanda = sum(sum_depot_demanda),
+            count_town_demanda = sum(count_agencia),
+            mean_town_demanda = sum_town_demanda/count_town_demanda) %>% ungroup
+
+ggplot(data = plotdata_town %>% top_n(50, sum_town_demanda),
+       mapping = aes(x = reorder(as.factor(Town_ID), -sum_town_demanda),
+                     y = sum_town_demanda)) +
+  geom_col(color = '#777777', fill = '#32ad32') +
+  scale_y_continuous(labels = comma) + theme_light() +
+  xlab('ID Cidade') + ylab('Demanda total') +
+  ggtitle('Demanda total por cidade - Top 50')
+#A demanda total por cidade auxilia a perceber as cidades com maior demanda por produtos
+depots_by_town <- plotdata_depot %>%
+  count(Town_ID, name = 'num_depots')
+
+ggplot(data = plotdata_town %>% 
+         top_n(50, sum_town_demanda) %>%
+         left_join(depots_by_town, by = 'Town_ID') %>%
+         select(Town_ID, sum_town_demanda, num_depots) %>% melt(id = 'Town_ID'),
+       mapping = aes(x = reorder(as.factor(Town_ID), -value),
+                     y = value)) +
+  geom_col(color = '#777777', fill = '#32ad32') +
+  scale_y_continuous(labels = comma) + theme_light() +
+  facet_wrap(facets = ~ variable,
+             scales = 'free_y',
+             nrow = 2, ncol = 1) +
+  xlab('ID Cidade') + ylab('Demanda total') +
+  ggtitle('Demanda total e quantidade de distribuidoras por cidade - Top 50')
+
+ggplot(data = plotdata_town %>% 
+         top_n(-50, sum_town_demanda) %>%
+         left_join(depots_by_town, by = 'Town_ID') %>%
+         select(Town_ID, sum_town_demanda, num_depots) %>% melt(id = 'Town_ID'),
+       mapping = aes(x = reorder(as.factor(Town_ID), -value),
+                     y = value)) +
+  geom_col(color = '#777777', fill = '#32ad32') +
+  scale_y_continuous(labels = comma) + theme_light() +
+  facet_wrap(facets = ~ variable,
+             scales = 'free_y',
+             nrow = 2, ncol = 1) +
+  xlab('ID Cidade') + ylab('Demanda total') +
+  ggtitle('Demanda total e quantidade de distribuidoras por cidade - Bottom 50')
+#As cidades com maiores demandas possuem mais distribuidoras, ao passo que cidades com menor demanda possuem menos distribuidoras.
+
+## Cliente_ID
+#Podemos calcular a demanda total e média de cada cliente para identificar clientes de larga escala
+plotdata_client <- train_sample %>%
+  group_by(Cliente_ID) %>%
+  summarize(mean_demanda_cliente = mean(Demanda_uni_equil),
+            sum_demanda_cliente = sum(Demanda_uni_equil)) %>%
+  left_join(tbl_clients, by = 'Cliente_ID')
+summary(plotdata_client)
+
+ggplot(data = plotdata_client %>%
+         top_n(20, sum_demanda_cliente) %>%
+         select(-Cliente_ID) %>% melt(id = 'NombreCliente'),
+       mapping = aes(x = reorder(as.factor(NombreCliente), value),
+                     y = value)) +
+  geom_col(color = '#e7e7e7', fill = '#dff0df') + 
+  geom_text(mapping = aes(label = sprintf('%.0f', value))) + 
+  coord_flip() + theme_light() +
+  facet_wrap(facets = ~ variable,
+             scales = 'free_x',
+             nrow = 1, ncol = 2) +
+  xlab('Clientes') + ylab('Demanda média / Demanda total') +
+  ggtitle('Demanda total por cliente - Top 20')
+#Puebla Remision é o principal cliente, com aproximadamente 860.000 produtos vendidos neste conjunto, enquanto o segundo 
+#maior cliente possui um volume de vendas de aproximadamente 39.000.
+#Mesmo com este volume significativo, a média de produtos por demanda está alinhada com os demais clientes, entre 140 e 160.
+
+#A discrepância na demanda média observada neste gr áfico sugere que exista uma alta demanda por uma pequena variedade de produtos,
+#enquanto os valores mais próximos da média sugerem uma demanda regular por uma variedade maior de produtos.
+
+## Producto_ID
+plotdata_product <- train_sample %>%
+  group_by(Producto_ID) %>%
+  summarize(mean_producto_demanda = mean(Demanda_uni_equil),
+            sum_producto_demanda = sum(Demanda_uni_equil)) %>%
+  left_join(product_pipeline(tbl_products), by = 'Producto_ID')
+summary(plotdata_product)
+
+ggplot(data = plotdata_product,
+       mapping = aes(x = product_weight,
+                     y = mean_producto_demanda)) +
+  geom_point() + theme_light() +
+  xlab('Peso do produto') + ylab('Demanda média') +
+  ggtitle('Demanda média por peso do produto')
+#Não parece haver uma correlação entre a demanda e o peso dos produtos, entretando é possível perceber que
+#produtos mais pesados possuem uma demanda menor.
+#A maioria dos produtos no catálogo possuem um peso inferior a 5kg, colocando os produtos em um mesmo patamar.
+
+# Produtos e clientes
+product_by_client <- train_sample %>%
+  group_by(Cliente_ID) %>%
+  summarize(unique_product_count = n_distinct(Producto_ID))
+
+ggplot(data = product_by_client %>% right_join(plotdata_client, by = 'Cliente_ID'),
+       mapping = aes(x = unique_product_count,
+                     y = mean_demanda_cliente)) +
+  geom_point() + theme_light() + 
+  xlab('Variedade de produtos') + ylab('Demanda média') +
+  ggtitle('Demanda média por variedade de produtos de cliente')
+#É esperado atender uma demanda menor à medida que o cliente solicita uma variedade maior de produtos.
+
+#Outliers - grande variedade de produtos
+product_by_client %>%
+  right_join(plotdata_client, by = 'Cliente_ID') %>%
+  filter(unique_product_count > 50)
+
+#Outliers - grande demanda por produtos
+product_by_client %>%
+  right_join(plotdata_client, by = 'Cliente_ID') %>%
+  filter(mean_demanda_cliente > 2000)

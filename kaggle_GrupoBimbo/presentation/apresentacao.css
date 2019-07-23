@@ -1,0 +1,23 @@
+body{
+	font-family: 'Source Sans Pro', sans-serif;
+	font-size: 14px;
+	text-align: justify;
+	background-color: #f7f9fa;
+}
+
+body > div.container-fluid{
+	background-color: #ffffffd9;
+}
+
+#header{
+	text-align: center;
+}
+
+.section.level1{
+	border-top: solid 1px lightgray;
+	margin-top: 35px;
+}
+
+.figure{
+	text-align: center;
+}
