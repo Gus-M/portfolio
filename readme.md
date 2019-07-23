@@ -1,18 +1,18 @@
 # Portfolio
 
-Bem-vindo ao meu portfólio. Neste repositório, estarei adicionando os projetos que trabalho.
+Bem-vindo ao meu portfólio. Neste repositório, estarei adicionando os projetos de data science que desenvolvi. Meus trabalhos costumam estar estruturados da seguinte forma:
 
-Meus projetos sempre possuem um arquivo de apresentação para resumir todo o trabalho realizado e os resultados obtidos, portanto, sinta-se à vontade para apenas visualizar as apresentações ou ler meus códigos.
+* **/input**: Arquivos utilizados para processar o trabalho. Trabalhos que envolveram um volume de dados elevado são disponibilizados de outra forma;
 
-## Câmara
+* **/output**: Dados de saída relevantes para compreensão do trabalho: plots, dados transformados, etc;
 
-Não adicionei todos meus projetos desenvolvidos na Câmara devido à restrições de confidencialidade. Apenas um dos projetos que desenvolvi foi apresentado publicamente à sociedade, e com isso me senti à vontade para compartilhar a apresentação do projeto, feita em R Markdown para HTML.
+* **/src**: Código-fonte produzido. Cada arquivo possui uma etiqueta numérica representando a sequência trabalhada;
 
-* [Painel de Sustentabilidade - TI Verde](http://gustavo-hsm.github.io/Apresentacao_TI_Verde.html)
+* **/presentation**: Conteúdo utilizado para apresentação final do resultado.
 
-## Kaggle
-
-Minhas participações solo em competições Kaggle são adicionadas aqui, com todos meus scripts e demais arquivos de interesse.
+## Apresentações
 
 * [TalkingData AdTracking Fraud Detection Challenge](https://gustavo-hsm.github.io/TalkingData.html)
+
+* [Grupo Bimbo Inventory Demand](https://gustavo-hsm.github.io/grupoBimbo.html)
 
