@@ -1,3 +1,12 @@
+# Projetos encerrados
+/kaggle_GrupoBimbo/
+/kaggle_TalkingData/
+
+# Inputs e arquivos compactados
+/zip-files/
+/*.zip
+/*.csv
+
 # Notebook checkpoints
 .ipynb*
 
