@@ -745,7 +745,7 @@ calc_product_features = function(tib){
   
   return(tib %>%
            mutate(heavy_product = as.numeric(product_weight >= weight_threshold),
-                  bundled_product = replace_na(product_weight, 0)))
+                  bundled_product = as.numeric(product_units >= 6)))
 }
 
 #Pipeline de produtos
