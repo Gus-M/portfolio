@@ -119,7 +119,7 @@ Descrição das variáveis disponíveis para teste:
 
 * Ruta_SAK: ID do percurso realizado entre a distribuidora e o cliente;
 
-* Cleinte_ID: ID do cliente, podendo ser associado ao dataset cliente_tabla.csv;
+* Cliente_ID: ID do cliente, podendo ser associado ao dataset cliente_tabla.csv;
 
 * Producto_ID: ID do produto, podendo ser associado ao dataset producto_tabla.csv.
 
@@ -192,7 +192,7 @@ impute_constant_unit = function(tib){
   return(tib %>% mutate(product_units = replace_na(product_units, 1)))
 }
 
-#Valores NA na coluna 'product_weight' serão substituídos pela média de seus grupos
+#Valores NA na coluna 'product_weight' serão substituídos pela mediana de seus grupos
 impute_group_median_weight = function(tib){
   
   #Criamos um array com os produtos de valor missing
@@ -345,9 +345,9 @@ Além dos IDs, temos informações sobre a quantidade de vendas e devoluções r
 
 $$ D = Venta - Devol, D \geqslant 0 $$
 
-* $ Venta $ = Produtos vendidos na semana (Venta_uni_hoy);
+* $Venta$ = Produtos vendidos na semana (Venta_uni_hoy);
 
-* $ Devol $ = Produtos a devolver na semana seguinte (Dev_uni_proxima)
+* $Devol$ = Produtos a devolver na semana seguinte (Dev_uni_proxima)
 
 É possível que existam registros em que devoluções superam vendas. Nestes casos, a demanda sempre será igual a zero.
 
