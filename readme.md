@@ -10,9 +10,4 @@ Bem-vindo ao meu portfólio. Neste repositório, estarei adicionando os projetos
 
 * **/presentation**: Conteúdo utilizado para apresentação final do resultado.
 
-## Apresentações
-
-* [TalkingData AdTracking Fraud Detection Challenge](https://gustavo-hsm.github.io/TalkingData.html)
-
-* [Grupo Bimbo Inventory Demand](https://gustavo-hsm.github.io/grupoBimbo.html)
-
+As visualizações para cada projeto podem ser consultadas na <a href="https://gustavo-hsm.github.io">minha página</a>.
