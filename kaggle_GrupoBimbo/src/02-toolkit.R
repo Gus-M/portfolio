@@ -83,7 +83,7 @@ calc_product_features = function(tib){
   
   return(tib %>%
            mutate(heavy_product = as.numeric(product_weight >= weight_threshold),
-                  bundled_product = replace_na(product_weight, 0)))
+                  bundled_product = as.numeric(product_units >= bundle_threshold)))
 }
 
 #Pipeline de produtos
@@ -156,11 +156,17 @@ calc_train_features = function(train_data, product_data, town_data,
     summarize(mean_producto_demanda = mean(Demanda_uni_equil)) %>%
     left_join(product_info, by = 'Producto_ID')
   
-  # #Variedade de produto por cliente
-  # product_stock = train_data %>%
-  #   group_by(Cliente_ID) %>%
-  #   summarize(unique_product_count = n_distinct(Producto_ID)) %>%
-  #   distinct
+  #Demanda por cliente e produto
+  client_product = train_data %>%
+    group_by(Producto_ID, Cliente_ID) %>%
+    summarize(mean_cliente_producto_demanda = mean(Demanda_uni_equil)) %>%
+    distinct %>% ungroup
   
-  return(list(channels, depots, town_depots, clients, products))
+  #Variedade de produto por cliente
+  product_stock = train_data %>%
+    group_by(Cliente_ID) %>%
+    summarize(unique_product_count = n_distinct(Producto_ID)) %>%
+    distinct
+  
+  return(list(channels, depots, town_depots, clients, products, client_product, product_stock))
 }
