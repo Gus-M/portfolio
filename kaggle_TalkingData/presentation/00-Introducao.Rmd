@@ -1,0 +1,76 @@
+---
+output: 
+  html_document:
+    css: 'apresentacao.css'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# TalkingData AdTracking Fraud Detection
+
+TalkingData é a plataforma de serviços de Big Data mais abrangente da China, cobrindo cerca de 70% dos dispositivos móveis desta nação. Eles recebem dados de aproximadamente 3 bilhões de cliques diários em anúncios de aplicativos (apps). Deste volume, estima-se que 90% dos cliques são potencialmente fraudulentos.
+
+Por fraude, entende-se a realização de cliques em anúncios de apps com a finalidade de elevar o volume de acessos de um canal de comunicação. Dessa forma, o custo financeiro destes canais aumenta, sem representar necessariamente cliques efetuados por usuários reais.
+
+A atual implementação desta empresa para coibir cliques fraudulentos é medir, para cada usuário, a navegação realizada através dos produtos de seu portfólio. A partir dessa métrica, são identificados os IPs que efetuam uma grande quantidade de cliques mas nunca realizaram o download do app anunciado. Registros classificados como fraudulentos são adicionados a uma lista negra de IPs e dispositivos.
+
+**Objetivo:** Identificar quais cliques realizados por usuários resultarão no download do aplicativo anunciado.
+
+# Observação dos dados disponíveis
+
+```{r datasets, message=FALSE}
+require(data.table)
+
+files <- list.files('../input', '.csv', full.names = T)
+
+datasets <- lapply(files, function(x){
+  print(system(paste0('wc -l ', x), intern = TRUE))
+  fread(x, nrows = 20)
+})
+```
+
+Existe uma grande quantidade de registros disponíveis para este trabalho: 184 milhões de dados históricos para treinamento do modelo preditivo e 18 milhões de dados a serem previstos.
+
+## Registros históricos (dados para treino)
+
+```{r train}
+print(datasets[[4]])
+```
+
+As variáveis observadas foram codificadas para representar apenas o ID de cada registro: 
+
+* ip: Endereço IP de origem do clique;
+
+* app: Aplicativo apresentado no anúncio;
+
+* device: Tipo de dispositivo do usuário (ex: Iphone 6, Huawei mate 7, etc);
+
+* os: Versão do sistema operacional do dispositivo;
+
+* channel: Canal de comunicação utilizado para apresentar o anúncio;
+
+* click_time: Data e hora do momento do clique;
+
+* attributed_time: Data e hora do momento do download, se ocorrer;
+
+* is_attributed: Variável a ser prevista, indicando se o download foi realizado.
+
+
+Além do dataset principal, foi disponibilizado um subconjunto de 100.000 registros selecionados aleatoriamente:
+
+```{r train_sample}
+train_sample <- fread(files[3])
+print(table(train_sample$is_attributed))
+```
+
+Dos 100.000 cliques selecionados, apenas 227 resultaram no download de um aplicativo! É esperado que menos de 1% dos cliques resultem no download do aplicativo anunciado.
+
+## Registros a prever (dados de teste)
+
+```{r test}
+print(datasets[[2]])
+```
+
+Os mesmos IDs estão disponíveis para teste, bem como o horário do clique. A variável click_id foi adicionada para avaliar as previsões no Kaggle.

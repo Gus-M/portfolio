@@ -1,0 +1,258 @@
+---
+  output: 
+  html_document:
+  css: 'apresentacao.css'
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Análise exploratória
+
+Durante a observação dos dados, percebemos que uma pequena parcela dos cliques resultará em um download, bem como existem mais de 180 milhões de registros disponíveis para análise.
+
+Faremos uma observação mais específica sobre todas as ocorrências de downloads. Para isso, vamos percorrer todo o arquivo com dados de treino e selecionar apenas as ocorrências que resultaram em download:
+
+```{r download_info, message=FALSE}
+require(data.table)
+require(ggplot2)
+require(lubridate)
+require(scales)
+
+#Parâmetros para leitura do arquivo
+row_index <- 0
+sample_size <- 2000000
+train_length <- 184903891
+is_attributed_true <- list()
+```
+
+```{r downloads, eval=FALSE}
+#Percorremos todo o dataset de treino
+while (row_index < train_length) {
+  #Fazemos a leitura a cada 'sample_size' linhas
+  train_sample <- fread('../input/train.csv', nrows = sample_size, skip = row_index,
+                        col.names = c('ip', 'app', 'device', 'os',
+                                      'channel', 'click_time', 'attributed_time',
+                                      'is_attributed'))
+  
+  #Apenas os registros que resultaram em download são selecionados
+  is_attributed_true <- append(is_attributed_true, list(train_sample[is_attributed > 0]))
+  row_index <- row_index + sample_size
+}
+#Agrupando todos os registros de download em um único dataset
+download_info <- rbindlist(is_attributed_true)
+
+#Gravando os registros de download para utilização posterior
+fwrite(download_info, '../output/download_info.csv')
+
+#Removendo variáveis que não serão utilizadas
+rm(row_index, sample_size, train_length, is_attributed_true, train_sample)
+invisible(gc())
+```
+
+```{r fread_downloads, include=FALSE}
+download_info <- fread('../output/download_info.csv')
+```
+
+```{r print_downloads}
+print(download_info)
+```
+
+Identificamos 456.845 ocorrências de downloads, o que representa aproximadamente 0.24% do total de cliques.
+
+```{r uniques}
+unique_values <- data.table(unique_ip = length(unique(download_info$ip)),
+                            unique_app = length(unique(download_info$app)),
+                            unique_device = length(unique(download_info$device)),
+                            unique_os = length(unique(download_info$os)),
+                            unique_channel = length(unique(download_info$channel)))
+print(unique_values)
+```
+
+Ao todo, identificamos 226 aplicativos anunciados por 174 canais de comunicação
+
+## IP de origem
+
+Essa variável representa o endereço IP de origem do registro, entretanto, não sabemos se estes IPs representam usuários individuais, roteadores, proxies ou outros dispositivos agregadores de múltiplos usuários.
+
+```{r plot_ip_downloads, fig.height=7, fig.width=12}
+total_clicks <- nrow(download_info)
+ip_downloads <- download_info[, .(downloads = .N), by = ip]
+ip_downloads[, ip := as.factor(ip)]
+
+ggplot(data = ip_downloads[order(-downloads)][1:20]) +
+  geom_bar(mapping = aes(x = reorder(ip, downloads), y = downloads),
+           fill = '#0b78b3', stat = 'identity', position = 'dodge') +
+  geom_text(mapping = aes(x = reorder(ip, downloads),
+                          y = downloads, label = downloads),
+           hjust = -0.5, size = 3, position = position_dodge(width = 1),
+           inherit.aes = T) +
+  scale_y_continuous(labels = comma) + coord_flip() +
+  ylab('Total de downloads') + xlab('ID do endereço IP') + theme_bw() +
+  ggtitle('Total de downloads por IP de origem - Top 20')
+```
+
+Percebemos que alguns IPs realizaram uma quantidade aparentemente excessiva de downloads, mas não conseguimos identificar apenas por este gráfico se este é um comportamento esperado.
+
+Vamos calcular e observar os quantis de downloads por IP:
+
+```{r}
+#Calculamos os quantis de downloads por IP
+ip_quantiles <- quantile(ip_downloads$downloads, seq(0.6, 1, 0.05))
+
+#Colocamos os quantis calculados em um data frame
+print(data.frame(quantile = names(ip_quantiles),
+                 downloads = ip_quantiles))
+```
+
+Pelo menos 75% dos IPs identificados realizaram um único download após o clique. Entre os quantis 80% e 95%, percebemos que os usuários realizaram de 2 a 5 downloads. Os registros apresentados no gráfico anterior representam valores entre os quantis 95 e 100.
+
+Observar os quantis nos auxiliou a perceber que o comportamento esperado pelo usuário é realizar apenas 1 download. Entretanto, existem usuários que realizaram múltiplos downloads de um ou mais aplicativos. Ambos comportamentos são desejáveis.
+
+Faremos mais uma análise nos IPs com maior quantidade de downloads registrados. Vamos identificar quantos aplicativos distintos foram baixados:
+
+```{r plot_most_ip_downloads, fig.height=7, fig.width=12}
+#Selecionamos os 20 IPs que mais realizaram downloads
+most_ip_downloads <- ip_downloads[order(-downloads), ip][1:20]
+
+#Identificamos a quantidade de downloads por aplicativo dos IPs mais predominantes
+ip_app_downloads <- download_info[ip %in% most_ip_downloads, .(downloads = .N), by = .(ip, app)]
+most_ip_downloads <- ip_app_downloads[, .(app_count = .N, total_downloads = sum(downloads)), by = ip]
+
+ggplot(data = most_ip_downloads[order(-total_downloads)][1:20]) +
+  geom_bar(mapping = aes(x = reorder(ip, total_downloads), y = app_count),
+           fill = '#137d17', stat = 'identity', position = 'dodge') +
+  geom_text(mapping = aes(x = reorder(ip, app_count),
+                          y = app_count, label = app_count),
+           hjust = -0.5, size = 3, position = position_dodge(width = 1),
+           inherit.aes = T) +
+  coord_flip() + ylab('Total de aplicativos distintos') + xlab('ID do endereço IP') +
+  theme_bw() + ggtitle('Download de aplicativos distintos por IP - Top 20 IPs')
+```
+
+Mantivemos a mesma ordem do primeiro gráfico, em que apresentamos o total de downloads por IP. Os registros 15195 e 110300 chamam a atenção por representarem downloads de um único aplicativo: ambos efetuaram 367 e 350 downloads, respectivamente, de um único aplicativo!
+
+As visualizações de downloads por IPs são interessantes para tentarmos entender o comportamento dos usuários, entretanto não foi possível sanar as dúvidas iniciais (cada IP é um usuário distinto ou um grupo de usuários?).
+
+## Aplicativos
+
+Cada aplicativo tem suas próprias características e público-alvo. Não temos muitas informações a respeito de cada app, mas podemos identificar quais são os mais procurados a partir do total de downloads realizados.
+
+```{r plot_apps, fig.height=7, fig.width=12}
+app_downloads <- download_info[, .(downloads = .N,
+                                   prop_downloads = .N/total_clicks), by = app]
+app_downloads[, app := as.factor(app)]
+
+ggplot(data = app_downloads[order(-downloads)][1:20]) +
+  geom_bar(mapping = aes(x = reorder(app, downloads), y = downloads),
+           fill = '#137d17', stat = 'identity', position = 'dodge') +
+  geom_text(mapping = aes(x = reorder(app, downloads),
+                          y = downloads, label = downloads),
+           hjust = -0.2, size = 3, position = position_dodge(width = 1),
+           inherit.aes = T) +
+  scale_y_continuous(labels = comma) + coord_flip() +
+  ylab('Total de downloads') + xlab('ID do aplicativo') +
+  theme_bw() + ggtitle('Aplicativos mais procurados - Top 20')
+```
+
+Neste conjunto de dados, o app 19 é o aplicativo mais procurado pelos usuários. Portanto, cliques neste aplicativo possuem maior probabilidade de resultar em download do aplicativo. Para representar este comportamento durante a criação do algoritmo de machine learning, será calculada a média de downloads e cliques por aplicativo.
+
+Com os dados disponíveis neste dataset, também podemos elaborar um filtro colaborativo para apresentar recomendações baseado em downloads dos demais usuários:
+
+```{r recommended_apps}
+#Usuários que baixaram o app 19
+app_19_users <- download_info[app == 19, unique(ip)]
+
+#Também baixaram estes apps
+app_19_also_downloaded <- download_info[ip %in% app_19_users & app != 19]
+
+#Calculamos o total de usuários similares e a proporção de downloads
+total_similar_downloads <- nrow(app_19_also_downloaded)
+app_19_also_downloaded <- app_19_also_downloaded[, .(prop_downloads = .N / total_similar_downloads), by = app]
+
+print(app_19_also_downloaded[order(-prop_downloads)][1:10])
+```
+
+Manter um sistema de recomendações é uma ideia interessante para sugerir outros downloads para cada usuário, contudo, não vamos explorar essa abordagem neste trabalho.
+
+## Dispositivos
+
+```{r plot_device, fig.height=7, fig.width=12}
+device_downloads <- download_info[, .(downloads = .N), by = device]
+device_downloads[, device := as.factor(device)]
+
+ggplot(data = device_downloads[order(-downloads)][1:20]) +
+  geom_bar(mapping = aes(x = reorder(device, downloads), y = downloads),
+           fill = '#137d17', stat = 'identity', position = 'dodge') +
+  geom_text(mapping = aes(x = reorder(device, downloads),
+                          y = downloads, label = downloads),
+           hjust = -0.2, size = 3, position = position_dodge(width = 1),
+           inherit.aes = T) +
+  scale_y_continuous(labels = comma) + coord_flip() +
+  ylab('Total de downloads') + xlab('ID do dispositivo') +
+  theme_bw() + ggtitle('Downloads por dispositivo - Top 20')
+```
+
+Os dispositivos 1 e 0 representam a grande maioria dos aparelhos utilizados pelos usuários que efetuaram download, sugerindo duas hipóteses:
+
+* Existe uma grande preferência dos usuários pelos dispositivos 1 e 0;
+
+* A maioria dos aplicativos anunciados funcionam apenas nos dispositivos 1 e 0.
+
+## Sistema operacional
+
+Essa variável está relacionada com o dispositivo do usuário: cada dispositivo utiliza uma versão específica de um sistema operacional.
+
+```{r plot_os, fig.height=7, fig.width=12}
+os_downloads <- download_info[, .(downloads = .N), by = os]
+os_downloads[, os := as.factor(os)]
+
+ggplot(data = os_downloads[order(-downloads)][1:20]) +
+  geom_bar(mapping = aes(x = reorder(os, downloads), y = downloads),
+           fill = '#137d17', stat = 'identity', position = 'dodge') +
+  geom_text(mapping = aes(x = reorder(os, downloads),
+                          y = downloads, label = downloads),
+           hjust = -0.2, size = 3, position = position_dodge(width = 1),
+           inherit.aes = T) +
+  scale_y_continuous(labels = comma) + coord_flip() +
+  ylab('Total de downloads') + xlab('ID do sistema operacional') +
+  theme_bw() + ggtitle('Downloads por sistema operacional - Top 20')
+```
+
+## Canal de comunicação
+
+Os aplicativos são anunciados pelos canais de comunicação. Observando o total de downloads, podemos compreender quais canais possuem melhor performance e maior probabilidade de promover um download.
+
+```{r plot_channel, fig.height=7, fig.width=12}
+channel_downloads <- download_info[, .(downloads = .N), by = channel]
+channel_downloads[, channel := as.factor(channel)]
+
+ggplot(data = channel_downloads[order(-downloads)][1:20]) +
+  geom_bar(mapping = aes(x = reorder(channel, downloads), y = downloads),
+           fill = '#137d17', stat = 'identity', position = 'dodge') +
+  geom_text(mapping = aes(x = reorder(channel, downloads),
+                          y = downloads, label = downloads),
+           hjust = -0.2, size = 3, position = position_dodge(width = 1),
+           inherit.aes = T) +
+  scale_y_continuous(labels = comma) + coord_flip() +
+  ylab('Total de downloads') + xlab('ID do canal') +
+  theme_bw() + ggtitle('Downloads por canal de comunicação - Top 20')
+```
+
+## Downloads por intervalos temporais
+
+A partir do momento do clique, podemos buscar padrões comportamentais dos usuários ao longo do tempo
+
+```{r download_datetime, fig.height=7, fig.width=12}
+ggplot(data = download_info) +
+  geom_density(mapping = aes(x = as_datetime(click_time), y = ..scaled..),
+               alpha = 0.1, fill = '#0e7305') +
+  scale_x_datetime(name = 'Período (dia/mês hora)', 
+                   date_breaks = '6 hours', date_labels = format('%d/%m %Hh'),
+                   date_minor_breaks = '1 hour') +
+  ylab('Densidade de ocorrências') + ggtitle('Downloads efetuados por período') +
+  theme_bw() + theme(panel.grid.major.x = element_line(size = 1))
+```
+
+Percebemos um padrão semelhante entre os dias observados. A maioria dos downloads ocorreram de cliques realizados entre 00h e 14h.
