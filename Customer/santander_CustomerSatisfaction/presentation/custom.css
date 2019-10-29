@@ -1,0 +1,21 @@
+body{
+	text-align: justify;
+	background-color: #f7f9fa;
+}
+
+body > div.container{
+	background-color: #ffffffd9;
+}
+
+div.output_area{
+	max-height: 600px;
+	overflow: auto;
+}
+
+div.output_stderr, a.anchor-link{
+	display: none;
+}
+
+div#notebook{
+	padding-bottom: 20px;
+}
